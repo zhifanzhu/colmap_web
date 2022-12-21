@@ -16,7 +16,7 @@ npm install @tensorflow/tfjs
 npm install three @types/three @react-three/fiber
 ```
 
-`react-three/drei`
+`react-three/drei` for OrbitControls
 ```bash
 npm install @react-three/drei
 ```
