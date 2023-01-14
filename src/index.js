@@ -10,8 +10,9 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 //   </React.StrictMode>
 // );
 const hostname = window.location.hostname;
-const subpath = 'colmap_projects/2022-12-17/P09_07-homo/'
-// const subpath = 'colmap_projects/2023-01-10/P23_05-homo/'
+let subpath;
+subpath = 'colmap_projects/2022-12-17/P09_07-homo/sparse/0'
+// subpath = 'colmap_projects/exp/P23_02-homo/sparse/new_all'
 fetch(`http://${hostname}:5001/model/${subpath}`).then(response => response.json())
   .then(model => {
     root.render(

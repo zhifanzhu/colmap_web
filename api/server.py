@@ -24,9 +24,9 @@ def pythonfy(data):
 @app.route("/model/<path:subpath>")
 @cross_origin()
 def model(subpath):
-    root = escape(subpath)  # e.g 'colmap_projects/2022-12-17/P09_07-homo/'
-    print(root)
-    model = os.path.join(root, 'sparse/0')
+    model = escape(subpath)  # e.g 'colmap_projects/2022-12-17/P09_07-homo/'
+    # model = os.path.join(root, 'sparse/0')
+    print(model)
     # cameras = colmap_utils.read_cameras_binary(f'{model}/cameras.bin')
     points = colmap_utils.read_points3d_binary(f'{model}/points3D.bin')
     images_registered = colmap_utils.read_images_binary(f'{model}/images.bin')
