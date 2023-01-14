@@ -35,146 +35,136 @@ function Points3D(props) {
   </points>
 }
 
-// quat: [4,], pos: [3,], size: float
-function Frustum(props) {
-  const ref = useRef();
-  const d = props.size;
-  const origin = [0, 0, 0];
-  // Looking through Z-axis
-  const left_top = [-0.75 * d, 0.5 * d, d];
-  const left_bottom = [-0.75 * d, -0.5 * d, d];
-  const right_top = [0.75 * d, 0.5 * d, d];
-  const right_bottom = [0.75 * d, -0.5 * d, d];
-  const positions = new Float32Array([
-    ...origin, ...left_top,
-    ...origin, ...left_bottom,
-    ...origin, ...right_top,
-    ...origin, ...right_bottom,
-    ...left_top, ...left_bottom,
-    ...left_top, ...right_top,
-    ...left_bottom, ...right_bottom,
-    ...right_top, ...right_bottom
-  ]);
-
-  return <group ref={ref} position={props.position} quaternion={props.quaternion}>
-    <mesh position={[0, 0, d]}>
-      <planeGeometry args={[1.5 * d, d, 1, 1]} />
-      <meshBasicMaterial color='#ff0000' side={THREE.DoubleSide} transparent={true} opacity={0.3} />
-    </mesh>
-    <lineSegments>
-      <bufferGeometry attach="geometry">
-        <bufferAttribute attach='attributes-position'
-          count={positions.length / 3}
-          array={positions}
-          itemSize={3} />
-      </bufferGeometry>
-      <lineBasicMaterial color='#ff0000' linewidth={1} />
-    </lineSegments>
-  </group>
-}
-
 // Inputs: quat: [M, 4], transl: [M, 3] representing world to camera transformation
 // we need to inverse this (quat, transl) and get [R^t | -R^t t]
-// Update-1: Have to convert list of Frustums into primitives to improve performance
-function CameraFrustums(props) {
-  const ref = useRef()
+// Update-1: Only with primitive lines (instead of independant objects)
+//  we can have no lagging
+function CameraPrimitives(props) {
+  const d = props.size;
   // Image list with two lines of data per image:
   //   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME
   //   POINTS2D[] as (X, Y, POINT3D_ID)
-  const frustums = [];
+  let positions = [];
+  console.log('start loading cameras')
   for (let key in props.cameras) {
     let camera = props.cameras[key];
     const quat = new THREE.Quaternion(camera.qvec[1], camera.qvec[2], camera.qvec[3], camera.qvec[0]);
     const transl = new THREE.Vector3(camera.tvec[0], camera.tvec[1], camera.tvec[2]);
     const world_to_cam = new THREE.Matrix4().makeRotationFromQuaternion(quat).setPosition(transl);
     const cam_to_world = world_to_cam.invert();
-    
-    const inv_quat = new THREE.Quaternion().setFromRotationMatrix(cam_to_world);
-    const inv_transl = new THREE.Vector3().setFromMatrixPosition(cam_to_world);
-    const quat_w = [inv_quat.x, inv_quat.y, inv_quat.z, inv_quat.w]; // world space
-    const transl_w = [inv_transl.x, inv_transl.y, inv_transl.z];
-    frustums.push(<Frustum key={key} size={props.size} quaternion={quat_w} position={transl_w} />);
+
+    // Looking through Z-axis
+    let origin = new THREE.Vector3(0, 0, 0).applyMatrix4(cam_to_world);
+    let left_top = new THREE.Vector3(-0.75 * d, 0.5 * d, d).applyMatrix4(cam_to_world);
+    let left_bottom = new THREE.Vector3(-0.75 * d, -0.5 * d, d).applyMatrix4(cam_to_world);
+    let right_top = new THREE.Vector3(0.75 * d, 0.5 * d, d).applyMatrix4(cam_to_world);
+    let right_bottom = new THREE.Vector3(0.75 * d, -0.5 * d, d).applyMatrix4(cam_to_world);
+
+    positions.push(...origin, ...left_top);
+    positions.push(...origin, ...left_bottom);
+    positions.push(...origin, ...right_top);
+    positions.push(...origin, ...right_bottom);
+    positions.push(...left_top, ...left_bottom);
+    positions.push(...left_top, ...right_top);
+    positions.push(...left_bottom, ...right_bottom);
+    positions.push(...right_top, ...right_bottom);
   }
-  return <group>{frustums}</group>
+  positions = new Float32Array(positions);
+  console.log('end loading cameras')
+
+  return <lineSegments>
+    <bufferGeometry attach="geometry">
+      <bufferAttribute attach='attributes-position'
+        count={positions.length / 3}
+        array={positions}
+        itemSize={3} />
+    </bufferGeometry>
+    <lineBasicMaterial color='#ff0000' linewidth={1} />
+  </lineSegments>
 }
 
-// Inputs: quat: [M, 4], transl: [M, 3] representing world to camera transformation
-// we need to inverse this (quat, transl) and get [R^t | -R^t t]
-// Update-1: Have to convert list of Frustums into primitives to improve performance
-function InstancedCameraCones(props) {
-  const ref = useRef();
-  const d = props.size;
-  // Image list with two lines of data per image:
-  //   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME
-  //   POINTS2D[] as (X, Y, POINT3D_ID)
-  const matrices = [];
-  for (let key in props.cameras) {
-    let camera = props.cameras[key];
+// Input: vec : THREE.Vector3, camera : colmap.Camera
+function get_world_from_cam(vec, camera) {
     const quat = new THREE.Quaternion(camera.qvec[1], camera.qvec[2], camera.qvec[3], camera.qvec[0]);
     const transl = new THREE.Vector3(camera.tvec[0], camera.tvec[1], camera.tvec[2]);
     const world_to_cam = new THREE.Matrix4().makeRotationFromQuaternion(quat).setPosition(transl);
-    let cam_to_world = world_to_cam.invert();
-    const cone_align = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion(-0.7071067811865476, 0, 0, 0.7071067811865476));
-    cam_to_world = cam_to_world.multiply(cone_align);
-    matrices.push(cam_to_world);
-  }
-  console.log(matrices.length);
-  // return <group>{frustums}</group>
-  useEffect(() => {
-    for (let i = 0; i < matrices.length; i++) {
-      ref.current.setMatrixAt(i, matrices[i]);
-    }
-  }, [])
-  return <instancedMesh ref={ref} args={[null, null, matrices.length]}>
-    <coneGeometry args={[d, d, 4, 1, false, Math.PI/4]} />
-    <meshBasicMaterial color='#ff0000'/>
-    {/* <meshStandardMaterial depthTest={false} wireframe={true} transparent={true}
-      color={0xff00ff} opacity={1} /> */}
-  </instancedMesh>
+    const cam_to_world = world_to_cam.invert();
+    // Looking through Z-axis
+    const ret = vec.applyMatrix4(cam_to_world);
+    return ret;
 }
 
+
 function Trajectory(props) {
-  const curTime = useRef();
-  const curIndex = useRef();
-  const FPS = 30;
+  const FPS = 1; // 30;
+  const TrajLength = 5;
+
+  let lines = [];
+  for (let i = 0; i < TrajLength; i++) {
+    const points = new Float32Array([0, 0, 0, 0, 0, 1]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
+    const material = new THREE.LineBasicMaterial({ color: 0xff00ff , linewidth: 10});
+    const line = new THREE.Line(geometry, material);
+    lines.push( line );
+  }
 
   useFrame((state, delta) => {
-    const scene = state.scene;
-    // const time = Math.floor(Date.now() / 1000);
-    // if (time != curTime.current) {
-    //   curTime.current = time;
-    // }
     const index = Math.floor(state.clock.elapsedTime * FPS);
-    if (index === curIndex.current) { return; }
-    const curCam = props.cameras[index % props.cameras.length];
+
+    for (let i = 0; i < TrajLength; i++) {
+      const positions = lines[i].geometry.attributes.position.array;
+      if (index - i - 1 < 0) { return; }
+      const cam_idx = (index - i) % props.cameras.length;
+      const cur_cam = props.cameras[cam_idx];
+      const prev_cam = props.cameras[cam_idx - 1];
+      const st = get_world_from_cam(new THREE.Vector3(0, 0, 0), cur_cam);
+      const ed = get_world_from_cam(new THREE.Vector3(0, 0, 0), prev_cam);
+
+      positions[0] = st.x;
+      positions[1] = st.y;
+      positions[2] = st.z;
+      positions[3] = ed.x;
+      positions[4] = ed.y;
+      positions[5] = ed.z;
+      lines[i].geometry.attributes.position.needsUpdate = true
+    }
   });
 
-  return <></>
+  return <group>{lines.map(e => <primitive object={e} position={[0, 0, 0]} />)}</group>
+}
+
+// Input: name: string
+// Output: int = vid_frame : string
+function extract_vid_frame(name) {
+  const vid = /P\d{2,}_\d{2,3}/.exec(name)[0];
+  const frame = /\d{10,}/.exec(name)[0];
+  return `${vid}_${frame}`;
 }
 
 function App(props) {
-  // fetch with blocking
   const [curTraj, setCurTraj] = useState(0);
   const [trajCounter, setTrajCounter] = useState(0);
 
-  const cameras = Object.values(props.model.images).sort((a, b) => a.id - b.id);
+  const cameras = Object.values(props.model.images).sort((a, b) => {
+    const frame_a = extract_vid_frame(a.name);
+    const frame_b = extract_vid_frame(b.name);
+    return frame_a < frame_b ? -1 : 1;
+  });
+  console.log(cameras)
 
   return <>
-    <span>Hello</span>
+    <span>Num cameras: {`${cameras.length}`}</span>
     <div style={{ width: window.innerWidth, height: window.innerHeight }}>
       <Canvas dpr={[1, 2]}>
-        <color args={[0xfffffff]} attach="background" />
+        <color args={[0x0000000]} attach="background" />
         <ambientLight />
         <OrbitControls enableDamping={false} minDistance={0.5} maxDistance={100}/>
         <axesHelper args={[1]} />
 
-        {/* <Frustum size={1} quaternion={[0, 0, 0, 1]} position={[0, 0, 0]} /> */}
-        {/* <CameraCone /> */}
-        {/* <CameraFrustums size={0.1} cameras={props.model.images}/> */}
-        <InstancedCameraCones size={0.1} cameras={props.model.images}/>
-        {/* <Points3D size={0.01} points={props.model.points}/> */}
-        {/* <Points3DTest /> */}
-        {/* <Trajectory cameras={props.model.images} points={props.model.points}/> */}
+        <CameraPrimitives size={0.1} cameras={props.model.images}/>
+        <Points3D size={0.01} points={props.model.points}/>
+        <Trajectory cameras={cameras}/>
       </Canvas>
     </div>
   </>
