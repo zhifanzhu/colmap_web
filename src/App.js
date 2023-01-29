@@ -96,15 +96,15 @@ function get_world_from_cam(vec, camera) {
 
 
 function Trajectory(props) {
-  const FPS = 1; // 30;
-  const TrajLength = 5;
+  const FPS = 10; // 30;
+  const TrajLength = 8;
 
   let lines = [];
   for (let i = 0; i < TrajLength; i++) {
     const points = new Float32Array([0, 0, 0, 0, 0, 1]);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
-    const material = new THREE.LineBasicMaterial({ color: 0xff00ff , linewidth: 10});
+    const material = new THREE.LineBasicMaterial({ color: 0xff00ff , linewidth: 20});
     const line = new THREE.Line(geometry, material);
     lines.push( line );
   }
@@ -142,16 +142,34 @@ function extract_vid_frame(name) {
   return `${vid}_${frame}`;
 }
 
-function App(props) {
+function App() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [model, setModel] = useState(null);
+
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    let subpath;
+    subpath = 'colmap_projects/stables_single/P09_07-homo/sparse/0'
+    // subpath = 'colmap_projects/dense_reg/P01_merge1/sparse/P01_10_all/'
+    // subpath = 'colmap_projects/exp/P23_02-homo/sparse/new_all'
+    fetch(`http://${hostname}:5001/model/${subpath}`)
+    .then(response => response.json())
+    .then(model => {
+      setModel(model);
+      setIsLoaded(true);
+    });
+  }, []);
+
   const [curTraj, setCurTraj] = useState(0);
   const [trajCounter, setTrajCounter] = useState(0);
 
-  const cameras = Object.values(props.model.images).sort((a, b) => {
+  if (isLoaded === false) { return <div>Loading...</div> }
+
+  const cameras = Object.values(model.images).sort((a, b) => {
     const frame_a = extract_vid_frame(a.name);
     const frame_b = extract_vid_frame(b.name);
     return frame_a < frame_b ? -1 : 1;
   });
-  console.log(cameras)
 
   return <>
     <span>Num cameras: {`${cameras.length}`}</span>
@@ -159,11 +177,12 @@ function App(props) {
       <Canvas dpr={[1, 2]}>
         <color args={[0x0000000]} attach="background" />
         <ambientLight />
-        <OrbitControls enableDamping={false} minDistance={0.5} maxDistance={100}/>
+        {/* <OrbitControls enableDamping={false} minDistance={0.5} maxDistance={100}/> */}
+        <TrackballControls enableDamping={false} minDistance={0.5} maxDistance={100}/>
         <axesHelper args={[1]} />
 
-        <CameraPrimitives size={0.1} cameras={props.model.images}/>
-        <Points3D size={0.01} points={props.model.points}/>
+        {/* <CameraPrimitives size={0.1} cameras={props.model.images}/> */}
+        <Points3D size={0.01} points={model.points}/>
         <Trajectory cameras={cameras}/>
       </Canvas>
     </div>
