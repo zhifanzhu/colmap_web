@@ -6,6 +6,10 @@ import { OrbitControls, TrackballControls, useTexture } from '@react-three/drei'
 import * as THREE from 'three';
 import { useEffect } from 'react';
 
+import { epickitchens_frame } from './extra'
+import { 
+  get_world_from_cam,
+ } from './math';
 import { ColmapCamera, ColmapPoint3D } from './types';
 
 const hostname = window.location.hostname;
@@ -42,7 +46,6 @@ function Points3D(props) {
 function CameraPrimitives(props) {
   const d = props.size;
   let positions = [];
-  console.log('start loading cameras')
   for (const camera of props.cameras) {
     const cam_to_world = camera.cam_to_world;
 
@@ -63,10 +66,9 @@ function CameraPrimitives(props) {
     positions.push(...right_top, ...right_bottom);
   }
   positions = new Float32Array(positions);
-  console.log('end loading cameras')
 
-  return <lineSegments>
-    <bufferGeometry attach="geometry">
+  return <lineSegments visible={!props.hideCameras}>
+    <bufferGeometry  attach="geometry">
       <bufferAttribute attach='attributes-position'
         count={positions.length / 3}
         array={positions}
@@ -76,41 +78,44 @@ function CameraPrimitives(props) {
   </lineSegments>
 }
 
-// Input: vec : THREE.Vector3, camera : colmap.Camera
-function get_world_from_cam(vec, camera) {
-    const quat = new THREE.Quaternion(camera.qvec[1], camera.qvec[2], camera.qvec[3], camera.qvec[0]);
-    const transl = new THREE.Vector3(camera.tvec[0], camera.tvec[1], camera.tvec[2]);
-    const world_to_cam = new THREE.Matrix4().makeRotationFromQuaternion(quat).setPosition(transl);
-    const cam_to_world = world_to_cam.invert();
-    // Looking through Z-axis
-    const ret = vec.applyMatrix4(cam_to_world);
-    return ret;
-}
-
-
 function Trajectory(props) {
-  const FPS = 10; // 30;
+  const FPS = 3; // 30;
   const TrajLength = 8;
+  const num_cameras = props.cameras.length;
 
-  let lines = [];
+  // TODO: change to use state? otherwise new lines will keep being added
+  const prev_index = useRef();
+
+  const lines = useRef([])
   for (let i = 0; i < TrajLength; i++) {
     const points = new Float32Array([0, 0, 0, 0, 0, 1]);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
     const material = new THREE.LineBasicMaterial({ color: 0x00ffff , linewidth: 40});
     const line = new THREE.Line(geometry, material);
-    lines.push( line );
+    line.key = i;
+    lines.current.push( line );
   }
 
   useFrame((state, delta) => {
-    const index = Math.floor(state.clock.elapsedTime * FPS);
+    if (props.pauseTraj) { 
+      state.clock.stop();
+      return; 
+    } else {
+      if (state.clock.running === false) { state.clock.start(); }
+    }
+    const index = Math.floor(state.clock.elapsedTime * FPS) % num_cameras;
+    if (index === prev_index.current) { 
+      return; 
+    }
+    console.log(prev_index)
+    prev_index.current = index;
 
     for (let i = 0; i < TrajLength; i++) {
-      const positions = lines[i].geometry.attributes.position.array;
+      const positions = lines.current[i].geometry.attributes.position.array;
       if (index - i - 1 < 0) { return; }
-      const cam_idx = (index - i) % props.cameras.length;
-      const cur_cam = props.cameras[cam_idx];
-      const prev_cam = props.cameras[cam_idx - 1];
+      const cur_cam = props.cameras[index - i];
+      const prev_cam = props.cameras[index - i - 1];
       const st = get_world_from_cam(new THREE.Vector3(0, 0, 0), cur_cam);
       const ed = get_world_from_cam(new THREE.Vector3(0, 0, 0), prev_cam);
 
@@ -120,19 +125,30 @@ function Trajectory(props) {
       positions[3] = ed.x;
       positions[4] = ed.y;
       positions[5] = ed.z;
-      lines[i].geometry.attributes.position.needsUpdate = true
+      lines.current[i].geometry.attributes.position.needsUpdate = true
     }
+
+    const head = props.cameras[index];
+    // head.name already has a leading '/' 
+    fetch(`http://${hostname}:${port}/image${head.name}`)
+      .then(response => response.blob())
+      .then(blob => {
+        const imgURL = URL.createObjectURL(blob);
+        const img = {url: imgURL, name: epickitchens_frame(head.name)}
+        props.setCurImage(img);
+      });
   });
 
-  return <group>{lines.map(e => <primitive object={e} position={[0, 0, 0]} />)}</group>
+  return <group>{lines.current.map(e => 
+    <primitive key={e.key} object={e} position={[0, 0, 0]} />)}</group>
 }
 
-// Input: name: string
-// Output: int = vid_frame : string
-function extract_vid_frame(name) {
-  const vid = /P\d{2,}_\d{2,3}/.exec(name)[0];
-  const frame = /\d{10,}/.exec(name)[0];
-  return `${vid}_${frame}`;
+function ImageHolder(props) {
+  if (!props.curImg) { return <>Loading</>; }
+  return <>
+    <img src={props.curImg.url} width={384} alt='image' />
+    <p>{props.curImg ? props.curImg.name : "Image PlaceHolder"}</p>
+  </>
 }
 
 function SceneApp() {
@@ -140,17 +156,21 @@ function SceneApp() {
   const [colmapCameras, setColmapCameras] = useState(null);
   const [colmapPoints, setColmapPoints] = useState(null);
 
-  const [curImg, setCurImage] = useState(null);
+  const [pauseTraj, setPauseTraj] = useState(false);
+  const [curImg, setCurImage] = useState(null); // {url, name}
   const [curTraj, setCurTraj] = useState(0);
   const [trajCounter, setTrajCounter] = useState(0);
+
+  // Interactive
+  const [hideCameras, setHideCameras] = useState(false);
 
 
   useEffect(() => {
     let subpath;
-    subpath = 'colmap_projects/stables_single/P09_07-homo/sparse/0'
-    // subpath = 'colmap_projects/dense_reg/P01_merge1/sparse/P01_10_all/'
-    // subpath = 'colmap_projects/exp/P23_02-homo/sparse/new_all'
-    // subpath = 'colmap_projects/homo_merged/P02/sparse/0/'
+    subpath = 'colmap_projects/stables_single/P09_07-homo/sparse/0'; // 150 cams
+    subpath = 'colmap_projects/dense_reg/P01_merge1/sparse/P01_10_all/'; // 13,342 cams
+    subpath = 'colmap_projects/exp/P23_02-homo/sparse/new_all'; // 6,360 cams
+    subpath = 'colmap_projects/homo_merged/P02/sparse/0/'; // 1,145 cams
     fetch(`http://${hostname}:${port}/model/${subpath}`)
     .then(response => response.json())
     .then(model => {
@@ -159,27 +179,23 @@ function SceneApp() {
 
       let cameras = Object.values(model.images).map(e => new ColmapCamera(e));
       cameras = cameras.sort((a, b) => {
-        const frame_a = extract_vid_frame(a.name);
-        const frame_b = extract_vid_frame(b.name);
+        const frame_a = epickitchens_frame(a.name);
+        const frame_b = epickitchens_frame(b.name);
         return frame_a < frame_b ? -1 : 1;
       });
       setColmapCameras(cameras);
 
       setIsLoaded(true);
     });
-    fetch(`http://${hostname}:${port}/image`)
-    .then(response => response.blob())
-    .then(blob => {
-      const url = URL.createObjectURL(blob);
-      setCurImage(url);
-    });
   }, []);
 
   if (isLoaded === false) { return <div>Loading...</div> }
 
-  console.log(colmapCameras[0].name);
   return <>
+    <button onClick={() => setHideCameras(!hideCameras)}>Hide Cameras</button>
     <span>Num cameras: {`${colmapCameras.length}`}</span>
+    <button onClick={() => setPauseTraj(!pauseTraj)}>Pause Trajectory</button>
+
     <div className='container'
       style={{ width: window.innerWidth, height: window.innerHeight }}>
       <Canvas dpr={[1, 2]}>
@@ -190,15 +206,15 @@ function SceneApp() {
           rotateSpeed={2.0}/>
         <axesHelper args={[1]} />
 
-        <CameraPrimitives size={0.1} cameras={colmapCameras}/>
+        <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/>
         <Points3D size={0.01} points={colmapPoints}/>
-        {/* <Trajectory cameras={colmapCameras}/> */}
+        <Trajectory cameras={colmapCameras} setCurImage={setCurImage}
+          pauseTraj={pauseTraj}/>
       </Canvas>
     </div>
 
     <div className='overlay'>
-      <img src={curImg} width={384} alt='image'/>
-      <p>Image PlaceHolder</p>
+      <ImageHolder curImg={curImg}/>
     </div>
   </>
 }
