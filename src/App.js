@@ -6,13 +6,17 @@ import { OrbitControls, TrackballControls, useTexture } from '@react-three/drei'
 import * as THREE from 'three';
 import { useEffect } from 'react';
 
+import { ColmapCamera, ColmapPoint3D } from './types';
+
+const hostname = window.location.hostname;
+const port = 5001;
+
 // Input: pts: [N, 3], colors: [N, 3]
 function Points3D(props) {
   const ref = useRef();
   const positions = [];
   const colors = [];
-  for (let key in props.points) {
-    let point = props.points[key];
+  for (const point of props.points) {
     positions.push(point.xyz[0], point.xyz[1], point.xyz[2]);
     colors.push(point.rgb[0] / 255.0, point.rgb[1] / 255.0, point.rgb[2] / 255.0);
   }
@@ -31,27 +35,16 @@ function Points3D(props) {
       <bufferAttribute attach='attributes-position' count={positions.length / 3} array={new Float32Array(positions)} itemSize={3} />
       <bufferAttribute attach='attributes-color' count={colors.length / 3} array={new Float32Array(colors)} itemSize={3} />
     </bufferGeometry>
-    <pointsMaterial size={props.size} sizeAttenuation={true} vertexColors={true}/>
+    <pointsMaterial size={props.size} sizeAttenuation={false} vertexColors={true}/>
   </points>
 }
 
-// Inputs: quat: [M, 4], transl: [M, 3] representing world to camera transformation
-// we need to inverse this (quat, transl) and get [R^t | -R^t t]
-// Update-1: Only with primitive lines (instead of independant objects)
-//  we can have no lagging
 function CameraPrimitives(props) {
   const d = props.size;
-  // Image list with two lines of data per image:
-  //   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME
-  //   POINTS2D[] as (X, Y, POINT3D_ID)
   let positions = [];
   console.log('start loading cameras')
-  for (let key in props.cameras) {
-    let camera = props.cameras[key];
-    const quat = new THREE.Quaternion(camera.qvec[1], camera.qvec[2], camera.qvec[3], camera.qvec[0]);
-    const transl = new THREE.Vector3(camera.tvec[0], camera.tvec[1], camera.tvec[2]);
-    const world_to_cam = new THREE.Matrix4().makeRotationFromQuaternion(quat).setPosition(transl);
-    const cam_to_world = world_to_cam.invert();
+  for (const camera of props.cameras) {
+    const cam_to_world = camera.cam_to_world;
 
     // Looking through Z-axis
     let origin = new THREE.Vector3(0, 0, 0).applyMatrix4(cam_to_world);
@@ -79,7 +72,7 @@ function CameraPrimitives(props) {
         array={positions}
         itemSize={3} />
     </bufferGeometry>
-    <lineBasicMaterial color='#ff0000' linewidth={1} />
+    <lineBasicMaterial color='#ff0000' linewidth={1} transparent={true}/>
   </lineSegments>
 }
 
@@ -104,7 +97,7 @@ function Trajectory(props) {
     const points = new Float32Array([0, 0, 0, 0, 0, 1]);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
-    const material = new THREE.LineBasicMaterial({ color: 0xff00ff , linewidth: 20});
+    const material = new THREE.LineBasicMaterial({ color: 0x00ffff , linewidth: 40});
     const line = new THREE.Line(geometry, material);
     lines.push( line );
   }
@@ -142,52 +135,74 @@ function extract_vid_frame(name) {
   return `${vid}_${frame}`;
 }
 
-function App() {
+function SceneApp() {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [model, setModel] = useState(null);
+  const [colmapCameras, setColmapCameras] = useState(null);
+  const [colmapPoints, setColmapPoints] = useState(null);
+
+  const [curImg, setCurImage] = useState(null);
+  const [curTraj, setCurTraj] = useState(0);
+  const [trajCounter, setTrajCounter] = useState(0);
+
 
   useEffect(() => {
-    const hostname = window.location.hostname;
     let subpath;
     subpath = 'colmap_projects/stables_single/P09_07-homo/sparse/0'
     // subpath = 'colmap_projects/dense_reg/P01_merge1/sparse/P01_10_all/'
     // subpath = 'colmap_projects/exp/P23_02-homo/sparse/new_all'
-    fetch(`http://${hostname}:5001/model/${subpath}`)
+    // subpath = 'colmap_projects/homo_merged/P02/sparse/0/'
+    fetch(`http://${hostname}:${port}/model/${subpath}`)
     .then(response => response.json())
     .then(model => {
-      setModel(model);
+      const points = Object.values(model.points).map(e => new ColmapPoint3D(e));
+      setColmapPoints(points);
+
+      let cameras = Object.values(model.images).map(e => new ColmapCamera(e));
+      cameras = cameras.sort((a, b) => {
+        const frame_a = extract_vid_frame(a.name);
+        const frame_b = extract_vid_frame(b.name);
+        return frame_a < frame_b ? -1 : 1;
+      });
+      setColmapCameras(cameras);
+
       setIsLoaded(true);
+    });
+    fetch(`http://${hostname}:${port}/image`)
+    .then(response => response.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      setCurImage(url);
     });
   }, []);
 
-  const [curTraj, setCurTraj] = useState(0);
-  const [trajCounter, setTrajCounter] = useState(0);
-
   if (isLoaded === false) { return <div>Loading...</div> }
 
-  const cameras = Object.values(model.images).sort((a, b) => {
-    const frame_a = extract_vid_frame(a.name);
-    const frame_b = extract_vid_frame(b.name);
-    return frame_a < frame_b ? -1 : 1;
-  });
-
+  console.log(colmapCameras[0].name);
   return <>
-    <span>Num cameras: {`${cameras.length}`}</span>
-    <div style={{ width: window.innerWidth, height: window.innerHeight }}>
+    <span>Num cameras: {`${colmapCameras.length}`}</span>
+    <div className='container'
+      style={{ width: window.innerWidth, height: window.innerHeight }}>
       <Canvas dpr={[1, 2]}>
         <color args={[0x0000000]} attach="background" />
         <ambientLight />
         {/* <OrbitControls enableDamping={false} minDistance={0.5} maxDistance={100}/> */}
-        <TrackballControls enableDamping={false} minDistance={0.5} maxDistance={100}/>
+        <TrackballControls enableDamping={false} minDistance={0.5} maxDistance={100}
+          rotateSpeed={2.0}/>
         <axesHelper args={[1]} />
 
-        {/* <CameraPrimitives size={0.1} cameras={props.model.images}/> */}
-        <Points3D size={0.01} points={model.points}/>
-        <Trajectory cameras={cameras}/>
+        <CameraPrimitives size={0.1} cameras={colmapCameras}/>
+        <Points3D size={0.01} points={colmapPoints}/>
+        {/* <Trajectory cameras={colmapCameras}/> */}
       </Canvas>
+    </div>
+
+    <div className='overlay'>
+      <img src={curImg} width={384} alt='image'/>
+      <p>Image PlaceHolder</p>
     </div>
   </>
 }
 
+const App = SceneApp;
 
 export default App;
