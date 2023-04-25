@@ -11,7 +11,7 @@ const hostname = window.location.hostname;
 const port = 5001;
 
 
-function SceneApp() {
+function Registration() {
   // console.log(hostname);
   const [isLoaded, setIsLoaded] = useState(false);
   const [colmapCameras, setColmapCameras] = useState(null);
@@ -19,12 +19,6 @@ function SceneApp() {
 
   // Interactive
   const [hideCameras, setHideCameras] = useState(false);
-
-  // 
-  const [trackBallEnabled, setTrackBallEnabled] = useState(true)
-  const handleSwitchControls = () => {
-    setTrackBallEnabled(enabled => !enabled)
-  }
 
   useEffect(() => {
     let subpath;
@@ -41,13 +35,6 @@ function SceneApp() {
       setIsLoaded(true);
     });
 
-    const handleKeyDown = (event) => {
-      if (event.key === 's') {
-        setTrackBallEnabled(enabled => !enabled)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
   }, []);
 
   if (isLoaded === false) { return <div>Loading...</div> }
@@ -57,8 +44,6 @@ function SceneApp() {
     <button onClick={() => setHideCameras(!hideCameras)}>Hide Cameras</button>
     <span>Num cameras: {`${colmapCameras.length}`}</span>
     </div>
-      
-    <button onClick={handleSwitchControls}>Switch Controls (S)</button>
 
     <div className='container'
       style={{ width: window.innerWidth, height: window.innerHeight }}>
@@ -66,18 +51,16 @@ function SceneApp() {
         <color args={[0x0000000]} attach="background" />
         <ambientLight />
         {/* <OrbitControls enableDamping={false} minDistance={0.5} maxDistance={100}/> */}
-        <TrackballControls enabled={trackBallEnabled} enableDamping={false} minDistance={0.5} maxDistance={100}
+        <TrackballControls enableDamping={false} minDistance={0.5} maxDistance={100}
           rotateSpeed={2.0}/>
         <axesHelper args={[1]} />
 
         <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/>
         <Points3D size={0.01} points={colmapPoints}/>
-        <MovableLine control_enabled={!trackBallEnabled}/>
+        {/* <MovableLine control_enabled={!trackBallEnabled}/> */}
       </Canvas>
     </div>
   </>
 }
 
-const App = SceneApp;
-
-export default App;
+export default Registration;
