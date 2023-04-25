@@ -189,4 +189,23 @@ function CameraPrimitives(props) {
   </lineSegments>
 }
 
-export { MovableLine, Points3D, CameraPrimitives};
+// Input: [N, 9] of [x1, y1, z1, x2, y2, z2, r, g, b]
+function SimpleLines(props) {
+  let positions = [];
+  let colors = [];
+  for (const line of props.lines) {
+    positions.push(line[0], line[1], line[2], line[3], line[4], line[5]);
+    colors.push(line[6] / 255.0, line[7] / 255.0, line[8] / 255.0, line[6] / 255.0, line[7] / 255.0, line[8] / 255.0);
+  }
+  positions = new Float32Array(positions);
+  colors = new Float32Array(colors);
+  return <lineSegments>
+    <bufferGeometry  attach="geometry">
+      <bufferAttribute attach='attributes-position' count={positions.length / 3} array={positions} itemSize={3} />
+      <bufferAttribute attach='attributes-color' count={colors.length / 3} array={colors} itemSize={3} />
+    </bufferGeometry>
+    <lineBasicMaterial color={null} vertexColors={true} linewidth={1} transparent={false}/>
+  </lineSegments>
+}
+
+export { MovableLine, Points3D, CameraPrimitives, SimpleLines};
