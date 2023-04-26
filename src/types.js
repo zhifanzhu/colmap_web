@@ -2,12 +2,13 @@ import * as THREE from 'three';
 
 /**
  * @typedef {ColmapCamera} ColmapCamera
- * @property {number[7]} qw, qx, qy, qz, tx, ty, tz
+ * @property {number[7]} qw, qx, qy, qz, tx, ty, tz, [r, g, b]. The last 3 is optional
  * 
  * @property {THREE.Vector3} position
  * @property {THREE.Quaternion} quaternion
  * @property {THREE.Matrix4} cam_to_world
  * @property {THREE.Matrix4} world_to_cam
+ * @property {number[3]} color
  * 
  */
 class ColmapCamera {
@@ -26,6 +27,11 @@ class ColmapCamera {
     this.quaternion = quat;
     this.world_to_cam = new THREE.Matrix4().makeRotationFromQuaternion(quat).setPosition(transl);
     this.cam_to_world = this.world_to_cam.invert();
+    if (camera.length === 10) {
+      this.color = [camera[7], camera[8], camera[9]];
+    } else {
+      this.color = [1.0, 0.0, 0.0];  // red
+    }
   }
 }
 

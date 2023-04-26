@@ -42,12 +42,10 @@ function Registration() {
     .then(response => response.json())
     .then(model => {
       const points = model.points.map(e => new ColmapPoint3D(e));
+      let cameras = model.images.map(e => new ColmapCamera(e));
       setColmapPoints(points);
-
-      console.log(model.lines)
+      setColmapCameras(cameras);
       setLines(model.lines)
-      // let cameras = model.images.map(e => new ColmapCamera(e));
-      // setColmapCameras(cameras);
 
       setIsLoaded(true);
     });
@@ -58,7 +56,7 @@ function Registration() {
 
   return <>
     <div>
-      <label>registration json</label><input type="text" placeholder="Enter a path to a json" /><br></br>
+      <label>registration json</label><input type="text" placeholder="Enter a path to a json" />
       &nbsp;&nbsp;<button onClick={() => console.log('clicked')}>Load</button>
     </div>
     <div>
@@ -77,7 +75,7 @@ function Registration() {
           rotateSpeed={2.0}/>
         <axesHelper args={[1]} />
 
-        {/* <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/> */}
+        <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/>
         <Points3D size={0.01} points={colmapPoints}/>
         <SimpleLines lines={lines}/>
       </Canvas>

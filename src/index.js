@@ -11,7 +11,7 @@ root.render(
     <Router>
       <Routes>
         <Route exact path="/" element={<App />} ></Route>
-        <Route path="/reg" element={<Registration/>} ></Route>
+        <Route path="/registration" element={<Registration/>} ></Route>
       </Routes>
     </Router>
     {/* <App /> */}

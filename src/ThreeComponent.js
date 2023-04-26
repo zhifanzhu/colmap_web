@@ -97,7 +97,6 @@ function InstancedCameraCones(props) {
     cam_to_world = cam_to_world.multiply(cone_align);
     matrices.push(cam_to_world);
   }
-  console.log(matrices.length);
   // return <group>{frustums}</group>
   useEffect(() => {
     for (let i = 0; i < matrices.length; i++) {
@@ -143,7 +142,7 @@ function Points3D(props) {
   const colors = [];
   for (const point of props.points) {
     positions.push(point.xyz[0], point.xyz[1], point.xyz[2]);
-    colors.push(point.rgb[0] / 255.0, point.rgb[1] / 255.0, point.rgb[2] / 255.0);
+    colors.push(point.rgb[0], point.rgb[1], point.rgb[2]);
   }
   return <points ref={ref}>
     <bufferGeometry>
@@ -157,6 +156,7 @@ function Points3D(props) {
 function CameraPrimitives(props) {
   const d = props.size;
   let positions = [];
+  let colors = [];
   for (const camera of props.cameras) {
     const cam_to_world = camera.cam_to_world;
 
@@ -175,17 +175,25 @@ function CameraPrimitives(props) {
     positions.push(...left_top, ...right_top);
     positions.push(...left_bottom, ...right_bottom);
     positions.push(...right_top, ...right_bottom);
+
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
+    colors.push(...camera.color, ...camera.color);
   }
   positions = new Float32Array(positions);
+  colors = new Float32Array(colors);
 
   return <lineSegments visible={!props.hideCameras}>
     <bufferGeometry  attach="geometry">
-      <bufferAttribute attach='attributes-position'
-        count={positions.length / 3}
-        array={positions}
-        itemSize={3} />
+      <bufferAttribute attach='attributes-position' count={positions.length / 3} array={positions} itemSize={3} />
+      <bufferAttribute attach='attributes-color' count={colors.length / 3} array={colors} itemSize={3} />
     </bufferGeometry>
-    <lineBasicMaterial color='#ff0000' linewidth={1} transparent={true}/>
+    <lineBasicMaterial color={null} vertexColors={true} linewidth={1} transparent={true}/>
   </lineSegments>
 }
 
@@ -195,7 +203,7 @@ function SimpleLines(props) {
   let colors = [];
   for (const line of props.lines) {
     positions.push(line[0], line[1], line[2], line[3], line[4], line[5]);
-    colors.push(line[6] / 255.0, line[7] / 255.0, line[8] / 255.0, line[6] / 255.0, line[7] / 255.0, line[8] / 255.0);
+    colors.push(line[6], line[7], line[8], line[6], line[7], line[8]);
   }
   positions = new Float32Array(positions);
   colors = new Float32Array(colors);
