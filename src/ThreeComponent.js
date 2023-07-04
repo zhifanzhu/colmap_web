@@ -197,13 +197,17 @@ function CameraPrimitives(props) {
   </lineSegments>
 }
 
-// Input: [N, 9] of [x1, y1, z1, x2, y2, z2, r, g, b]
+// Input: [N, 9] of [x1, y1, z1, x2, y2, z2, [r, g, b]]
 function SimpleLines(props) {
   let positions = [];
   let colors = [];
   for (const line of props.lines) {
     positions.push(line[0], line[1], line[2], line[3], line[4], line[5]);
-    colors.push(line[6], line[7], line[8], line[6], line[7], line[8]);
+    if (line.length === 6) {
+      colors.push(1, 1, 1, 1, 1, 1);
+    } else {
+      colors.push(line[6], line[7], line[8], line[6], line[7], line[8]);
+    }
   }
   positions = new Float32Array(positions);
   colors = new Float32Array(colors);

@@ -24,7 +24,7 @@ function Dummy() {
 
 function Registration() {
   // Reading registration file and models
-  // const [regFile, setRegFile] = useState(null);
+  const [regFile, setRegFile] = useState(null);
 
   // skeletons
   const [isLoaded, setIsLoaded] = useState(false);
@@ -36,8 +36,12 @@ function Registration() {
   const [hideCameras, setHideCameras] = useState(false);
 
   useEffect(() => {
+    // const job = 'P04AB';
+    const job = 'P01B';
     // setRegFile('colmap_projects/registration/P04A/P04A.json')
-    const regFile = 'colmap_projects/registration/P04A/P04A.json';
+    // const regFile = 'colmap_projects/registration/P04A/P04A_01_33_good.json';
+    const regFile = `colmap_projects/registration/${job}/${job}.json`;
+    console.log(hostname, port, regFile)
     fetch(`http://${hostname}:${port}/registration/${regFile}`)
     .then(response => response.json())
     .then(model => {
@@ -51,6 +55,19 @@ function Registration() {
     });
 
   }, []);
+
+  const loadModel = (path) => {
+    fetch(`http://${hostname}:${port}/registration/${path}`)
+    .then(response => response.json())
+    .then(model => {
+      const points = model.points.map(e => new ColmapPoint3D(e));
+      let cameras = model.images.map(e => new ColmapCamera(e));
+      setColmapPoints(points);
+      setColmapCameras(cameras);
+      setLines(model.lines)
+      setIsLoaded(true);
+    });
+  }
 
   if (isLoaded === false) { return <div>Loading...</div> }
 
@@ -75,9 +92,9 @@ function Registration() {
           rotateSpeed={2.0}/>
         <axesHelper args={[1]} />
 
-        <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/>
+        {/* <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/> */}
         <Points3D size={0.01} points={colmapPoints}/>
-        <SimpleLines lines={lines}/>
+        {/* <SimpleLines lines={lines}/> */}
       </Canvas>
     </div>
   </>

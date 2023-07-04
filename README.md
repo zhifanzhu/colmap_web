@@ -1,15 +1,3 @@
-# Format 
-This expected the json format colmap model, which should be converted from extract_primitives.py
-{
-    'cameras': [xxx],
-    'images': [
-        [qw, qx, qy, qz, tx, ty, tz]  # w2c
-    ],
-    'points': [
-        [x, y, z, r, g, b]  # rgb in 0-255
-    ]
-}
-
 # Usage
 
 ## Server

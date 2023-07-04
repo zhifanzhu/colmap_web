@@ -5,17 +5,18 @@ import { OrbitControls, Sphere, TrackballControls, useTexture } from '@react-thr
 
 import * as THREE from 'three';
 import { ColmapCamera, ColmapPoint3D } from './types';
-import { Points3D, CameraPrimitives, MovableLine } from './ThreeComponent';
+import { Points3D, CameraPrimitives, SimpleLines } from './ThreeComponent';
 
 const hostname = window.location.hostname;
 const port = 5001;
 
 
-function SceneApp() {
+function FixedLine() {
   // console.log(hostname);
   const [isLoaded, setIsLoaded] = useState(false);
   const [colmapCameras, setColmapCameras] = useState(null);
   const [colmapPoints, setColmapPoints] = useState(null);
+  const [lines, setLines] = useState(null);
 
   // Interactive
   const [hideCameras, setHideCameras] = useState(false);
@@ -28,7 +29,7 @@ function SceneApp() {
 
   useEffect(() => {
     let subpath;
-    subpath = 'colmap_projects/json_models/P02_01_skeletons.json';
+    subpath = 'colmap_projects/json_models/P04_01_skeletons.json';
     fetch(`http://${hostname}:${port}/model/${subpath}`)
     .then(response => response.json())
     .then(model => {
@@ -37,6 +38,8 @@ function SceneApp() {
 
       let cameras = model.images.map(e => new ColmapCamera(e));
       setColmapCameras(cameras);
+      // setLines([model.line[0], model.line[1], model.line[2], 
+      //   model.line[3], model.line[4], model.line[5]]);
 
       setIsLoaded(true);
     });
@@ -72,12 +75,10 @@ function SceneApp() {
 
         <CameraPrimitives size={0.1} cameras={colmapCameras} hideCameras={hideCameras}/>
         <Points3D size={0.01} points={colmapPoints}/>
-        <MovableLine control_enabled={!trackBallEnabled}/>
+        {/* <SimpleLines lines={lines}/> */}
       </Canvas>
     </div>
   </>
 }
 
-const App = SceneApp;
-
-export default App;
+export default FixedLine;

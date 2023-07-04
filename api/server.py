@@ -17,6 +17,26 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 app = Flask(__name__)
 
 
+""" Data flow
+Input:
+    image: {name: [qw, qx, qy, qz, tx, ty, tz], ...}
+    point: [x, y, z, r, g, b], rgb in [0, 255]
+
+Output-to-client:
+    model/:
+        image: [qw, qx, qy, qz, tx, ty, tz]
+        point: [x, y, z, r, g, b]
+        line: [x1 y1 z1 x2 y2 z2]
+
+    registration/
+        points: [ [x, y, z, r, g, b], ... ],
+        lines:  [ [x1 y1 z1 x2 y2 z2 r g b], ...]
+        images: [ [qw, qx, qy, qz, tx, ty, tz, r, g, b], ...]]
+
+output rgb in [0, 1]
+"""
+
+
 def generate_colormap(num_colors):
     """ colors in [0, 1]"""
     from matplotlib import pyplot as plt
@@ -57,14 +77,6 @@ def get_inverse_transform(s, R, t) -> torch.Tensor:
 @app.route("/model/<path:subpath>")
 @cross_origin()
 def model(subpath):
-    """ Single model 
-
-    Returns: {
-        'points': [ [x, y, z, r, g, b], ... ],
-        'images': [ [qw, qx, qy, qz, tx, ty, tz], ...]]
-        TODO: 'lines': [ [x1 y1 z1 x2 y2 z2 r g b], ...]
-    }
-    """
     model = escape(subpath)  # e.g 'colmap_projects/json_models/P04_01_skeletons.json'
     print(model)
     with open(model) as fp:
@@ -72,6 +84,7 @@ def model(subpath):
     points = np.asarray(data['points'])
     points[:, 3:] = points[:, 3:] / 255
     data['points'] = points.tolist()
+    data['images'] = [im for im in data['images'].values()]
 
     return jsonify(data)
 
@@ -84,15 +97,6 @@ def registration(reg_path):
     - Rotate, scale and translate 
     - Color the points
     - Loading the line, color it
-
-    Input points has rgb values in [0, 255]
-
-    Returns: {
-        'points': [ [x, y, z, r, g, b], ... ],
-        'lines': [ [x1 y1 z1 x2 y2 z2 r g b], ...]
-        'images': [ [qw, qx, qy, qz, tx, ty, tz, r, g, b], ...]]
-    }
-        - rgb in [0, 1]
     """
     reg = escape(reg_path)  # e.g 'colmap_projects/registration/P04A/P04A.json'
     print(reg)
@@ -107,16 +111,17 @@ def registration(reg_path):
     all_points = []
     all_lines = []
     all_images = []
-    for model_info, clr in zip(model_infos, colors.values()):
-        model_path = model_prefix + model_info['model_vid'] + model_suffix
+    for model_vid, model_info, clr in zip(model_infos.keys(), model_infos.values(), colors.values()):
+        model_path = model_prefix + model_vid + model_suffix
+        print(f'loading {model_path}')
         with open(model_path) as fp:
             model = ujson.load(fp)
             points = np.asarray(model['points'])
-            images = np.asarray(model['images'])
-            if 'line' in model:
-                line = np.asarray(model['line']).reshape(-1, 3)
-            else:
-                line = np.float32([0, 0, 0, 1, 0, 0]).reshape(-1, 3)
+            images = np.asarray([im for im in model['images'].values()])
+            # if 'line' in model:
+            #     line = np.asarray(model['line']).reshape(-1, 3)
+            # else:
+            line = np.float32([0, 0, 0, 1, 0, 0]).reshape(-1, 3)
 
         rot = np.asarray(model_info['rot']).reshape(3, 3)
         transl = np.asarray(model_info['transl'])
